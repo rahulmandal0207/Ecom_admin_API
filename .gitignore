@@ -9,6 +9,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+Ecommerce_API_2/appsettings.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
