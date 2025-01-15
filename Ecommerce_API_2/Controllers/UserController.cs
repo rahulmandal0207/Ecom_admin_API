@@ -26,39 +26,77 @@ namespace Ecommerce_API_2.Controllers
             dynamic response = new ExpandoObject();
             try
             {
+                /*
+                //var data = (from u in _context.Users
+                //            join o in _context.Orders on u.UserId equals o.UserId into userOrders
+                //            from o in userOrders.DefaultIfEmpty()
+                //            join od in _context.OrderDetails on o.OrderId equals od.OrderId into orderDetails
+                //            from od in orderDetails.DefaultIfEmpty()
+                //            join p in _context.Products on od.ProductId equals p.ProductId into product
+                //            from p in product.DefaultIfEmpty()
+                //            select new
+                //            {
+                //                u.UserId,
+                //                u.Email,
+                //                u.Password,
+                //                Orders = o == null ? null : new
+                //                {
+                //                    o.OrderId,
+                //                    o.OrderDate,
+                //                    o.TotalAmount,
+                //                    o.OrderStatus,
+
+                //                    OrderDetails = od == null ? null : new
+                //                    {
+                //                        od.OrderDetailId,
+                //                        od.ProductId,
+                //                        od.Quantity,
+                //                        od.Price,
+                //                        Product = p == null ? null : new
+                //                        {
+                //                            p.ProductName,
+                //                            p.CurrentPrice,
+                //                            p.StockQuantity
+                //                        }
+                //                    }
+                //                }
+                //            }).ToList();
+
+                */
+                
                 var data = (from u in _context.Users
-                            join o in _context.Orders on u.UserId equals o.UserId into userOrders
-                            from o in userOrders.DefaultIfEmpty()
-                            join od in _context.OrderDetails on o.OrderId equals od.OrderId into orderDetails
-                            from od in orderDetails.DefaultIfEmpty()
-                            join p in _context.Products on od.ProductId equals p.ProductId into product
-                            from p in product.DefaultIfEmpty()
                             select new
                             {
                                 u.UserId,
                                 u.Email,
                                 u.Password,
-                                Orders = o == null ? null : new
-                                {
-                                    o.OrderId,
-                                    o.OrderDate,
-                                    o.TotalAmount,
-                                    o.OrderStatus,
-
-                                    OrderDetails = od == null ? null : new
-                                    {
-                                        od.OrderDetailId,
-                                        od.ProductId,
-                                        od.Quantity,
-                                        od.Price,
-                                        Product = p == null ? null : new
-                                        {
-                                            p.ProductName,
-                                            p.CurrentPrice,
-                                            p.StockQuantity
-                                        }
-                                    }
-                                }
+                                u.Role,
+                                Orders = (from o in _context.Orders
+                                          where o.UserId == u.UserId
+                                          select new
+                                          {
+                                              o.OrderId,
+                                              o.OrderDate,
+                                              o.TotalAmount,
+                                              o.OrderStatus,
+                                              OrderDetails = (from od in _context.OrderDetails
+                                                              where od.OrderId == od.OrderId
+                                                              select new
+                                                              {
+                                                                  od.OrderDetailId,
+                                                                  od.ProductId,
+                                                                  od.Quantity,
+                                                                  od.Price,
+                                                                  Products = (from p in _context.Products
+                                                                              where p.ProductId == od.ProductId
+                                                                              select new
+                                                                              {
+                                                                                  p.ProductName,
+                                                                                  p.CurrentPrice,
+                                                                                  p.StockQuantity,
+                                                                              }).ToList()
+                                                              }).ToList()
+                                          }).ToList()
                             }).ToList();
 
                 response.Data = data;
@@ -71,6 +109,67 @@ namespace Ecommerce_API_2.Controllers
 
             return Ok(response);
         }
+
+        [HttpGet("{id}")]
+        public IActionResult GetUserById(int id)
+        {
+            dynamic response = new ExpandoObject();
+            try
+            {
+                var user = (from u in _context.Users
+                            where u.UserId == id
+                            select new
+                            {
+                                u.UserId,
+                                u.Email,
+                                u.Password,
+                                Orders = (from o in _context.Orders
+                                          where o.UserId == u.UserId
+                                          select new
+                                          {
+                                              o.OrderId,
+                                              o.OrderDate,
+                                              o.TotalAmount,
+                                              o.OrderStatus,
+                                              OrderDetails = (from od in _context.OrderDetails
+                                                              where od.OrderId == o.OrderId
+                                                              select new
+                                                              {
+                                                                  od.OrderDetailId,
+                                                                  od.ProductId,
+                                                                  od.Quantity,
+                                                                  od.Price,
+                                                                  Product = (from p in _context.Products
+                                                                             where p.ProductId == od.ProductId
+                                                                             select new
+                                                                             {
+                                                                                 p.ProductName,
+                                                                                 p.CurrentPrice,
+                                                                                 p.StockQuantity
+                                                                             }).FirstOrDefault()
+                                                              }).ToList()
+                                          }).ToList()
+                            }).FirstOrDefault();
+
+                if (user == null)
+                {
+                    response.Message = "User not found";
+                    return NotFound(response);
+                }
+
+                response.Data = user;
+                response.Message = "Success";
+            }
+            catch (Exception e)
+            {
+                response.Message = e.Message;
+            }
+
+            return Ok(response);
+        }
+
+
+
 
         [HttpPost]
         public IActionResult CreateUser(UserModel dto)
@@ -169,8 +268,39 @@ namespace Ecommerce_API_2.Controllers
             return Ok(response);
         }
 
+        [HttpPost("login")]
+        public IActionResult LoginUser(LoginModel dto)
+        {
+            dynamic response = new ExpandoObject();
+            try
+            {
+                User? user = (from u in _context.Users.Where(x => (x.Email == dto.Email && x.Password == dto.Password))
+                             select u).FirstOrDefault();
+
+                if (user == null)
+                {
+                    response.Message = "User Not found";
+                    return NotFound(response);
+                }
+
+                response.Message = "Login Success";
+                response.Data = user;
+
+                return Ok(response);
+
+            }
+            catch (Exception ex)
+            {
+                response.Message = ex.Message;
+            }
+
+            return Ok(response);
+        }
+       
  
     }
+
+   
 
     public class UserModel 
     {
