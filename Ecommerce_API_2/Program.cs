@@ -14,6 +14,8 @@ builder.Services.AddDbContext<EcommerceContext>(options =>
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.PropertyNamingPolicy = null;
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
+
 });
 
 builder.Services.AddCors(options =>

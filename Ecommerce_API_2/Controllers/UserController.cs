@@ -169,8 +169,6 @@ namespace Ecommerce_API_2.Controllers
         }
 
 
-
-
         [HttpPost]
         public IActionResult CreateUser(UserModel dto)
         {
@@ -296,11 +294,9 @@ namespace Ecommerce_API_2.Controllers
 
             return Ok(response);
         }
-       
- 
-    }
 
-   
+
+    }
 
     public class UserModel 
     {
@@ -314,6 +310,9 @@ namespace Ecommerce_API_2.Controllers
         public string Password { get; set; } = null!;
 
         public byte Role { get; set; }
+
+
+      
 
     }
 }
