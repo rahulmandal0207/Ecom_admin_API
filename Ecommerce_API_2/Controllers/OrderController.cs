@@ -106,6 +106,8 @@ namespace Ecommerce_API_2.Controllers
             return Ok(response);
         }
 
+
+
         [HttpPost]
         public IActionResult PostOrder(OrderRequest dto)
         {
@@ -184,11 +186,240 @@ namespace Ecommerce_API_2.Controllers
             }
         }
 
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateOrder(int id, OrderRequest request)
+        {
+            dynamic response = new ExpandoObject();
+
+            // Start a database transaction
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Check if the order exists
+                var existingOrder = await _context.Orders
+                    .Include(o => o.OrderDetails)
+                    .FirstOrDefaultAsync(o => o.OrderId == id);
+
+                if (existingOrder == null)
+                {
+                    response.Message = "Order not found";
+                    return NotFound(response);
+                }
+
+                // Update the order's basic properties
+                existingOrder.UserId = request.UserId;
+                existingOrder.OrderDate = DateTime.Now;
+
+                // Validate and update order details
+                decimal totalAmount = 0;
+
+                // Remove existing order details from the database
+                foreach (var detail in existingOrder.OrderDetails)
+                {
+                    var product = await _context.Products.FirstOrDefaultAsync(p => p.ProductId == detail.ProductId);
+                    if (product != null)
+                    {
+                        product.StockQuantity += detail.Quantity; // Restore stock
+                        _context.Products.Update(product);
+                    }
+                }
+                _context.OrderDetails.RemoveRange(existingOrder.OrderDetails);
+
+                // Add new order details from the request
+                foreach (var detailRequest in request.OrderDetails)
+                {
+                    var product = await _context.Products.FirstOrDefaultAsync(p => p.ProductId == detailRequest.ProductId);
+                    if (product == null)
+                    {
+                        response.Message = $"Product with ID {detailRequest.ProductId} not found";
+                        return BadRequest(response);
+                    }
+
+                    if (product.StockQuantity < detailRequest.Quantity)
+                    {
+                        response.Message = $"Insufficient stock for product ID {detailRequest.ProductId}";
+                        return BadRequest(response);
+                    }
+
+                    product.StockQuantity -= detailRequest.Quantity;
+                    _context.Products.Update(product);
+
+                    var newDetail = new OrderDetail
+                    {
+                        OrderId = id,
+                        ProductId = detailRequest.ProductId,
+                        Quantity = detailRequest.Quantity,
+                        Price = product.CurrentPrice
+                    };
+
+                    totalAmount += detailRequest.Quantity * product.CurrentPrice;
+                    existingOrder.OrderDetails.Add(newDetail);
+                }
+
+                // Update the total amount
+                existingOrder.TotalAmount = totalAmount;
+
+                // Save changes to the database
+                _context.Orders.Update(existingOrder);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                response.Message = "Order updated successfully";
+                response.Data = new
+                {
+                    existingOrder.OrderId,
+                    existingOrder.UserId,
+                    existingOrder.TotalAmount,
+                    existingOrder.OrderDate,
+                    existingOrder.OrderStatus,
+                    OrderDetails = existingOrder.OrderDetails.Select(d => new
+                    {
+                        d.ProductId,
+                        d.Quantity,
+                        d.Price
+                    }).ToList()
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                response.Message = ex.Message;
+                return StatusCode(500, response);
+            }
+        }
+
+
+        //// update
+        //[HttpPut("{id}")]
+        //public IActionResult UpdateOrder(int id, OrderRequest request)
+        //{
+        //    dynamic response = new ExpandoObject();
+
+        //    using var transaction = _context.Database.BeginTransaction();
+        //    try
+        //    {
+        //        if (id != request.OrderId)
+        //        {
+        //            response.Message = "Invalid Order ID";
+        //            return BadRequest(response);
+        //        }
+
+        //        //var existingOrder = (from o in _context.Orders
+        //        //                     where o.OrderId == id
+        //        //                     select new
+        //        //                     {
+        //        //                         o.OrderId,
+        //        //                         o.UserId,
+        //        //                         o.OrderDate,
+        //        //                         o.TotalAmount,
+        //        //                         o.OrderStatus,
+        //        //                         OrderDetails = (from od in _context.OrderDetails
+        //        //                                         where o.OrderId == od.OrderId
+        //        //                                         select new
+        //        //                                         {
+        //        //                                             od.OrderDetailId,
+        //        //                                             od.ProductId,
+        //        //                                             od.Quantity,
+        //        //                                             od.Price,
+        //        //                                             Products = (from p in _context.Products
+        //        //                                                         where od.ProductId == p.ProductId
+        //        //                                                         select new
+        //        //                                                         {
+        //        //                                                             p.ProductName,
+        //        //                                                             p.CurrentPrice,
+        //        //                                                             p.StockQuantity,
+        //        //                                                         }).ToList()
+        //        //                                         }).ToList()
+        //        //                     }).FirstOrDefault();
+
+        //        var existingOrder = _context.Orders.Include(o => o.OrderDetails).FirstOrDefault(o => o.OrderId == id);
+
+        //        if (existingOrder == null)
+        //        {
+        //            response.Message = "Order not found";
+        //            return NotFound(response);
+        //        }
+
+        //        existingOrder.UserId = request.UserId;
+        //        existingOrder.OrderDate = DateTime.Now;
+
+        //        decimal totalAmount = 0;
+
+        //        foreach (var detail in existingOrder.OrderDetails)
+        //        {
+        //            Product? product = (from p in _context.Products
+        //                                where p.ProductId == detail.ProductId
+        //                                select p).FirstOrDefault();
+
+        //            if (product != null)
+        //            {
+        //                // Restoring the stock
+        //                product.StockQuantity += detail.Quantity;
+        //                _context.Products.Update(product);
+        //            }
+        //        }
+
+        //        _context.OrderDetails.RemoveRange(existingOrder.OrderDetails);
+
+        //        foreach (var detail in existingOrder.OrderDetails)
+        //        {
+        //            Product? product = (from p in _context.Products
+        //                                where p.ProductId == detail.ProductId
+        //                                select p).FirstOrDefault();
+
+        //            if (product == null)
+        //            {
+        //                response.Message = $"Product with ID {detail.ProductId} not found";
+        //                return BadRequest(response);
+        //            }
+
+        //            if (product.StockQuantity < detail.Quantity)
+        //            {
+        //                response.Message = $"Insufficient stock for product ID {detail.ProductId}";
+        //                return BadRequest(response);
+        //            }
+
+        //            product.StockQuantity -= detail.Quantity;
+        //            _context.Products.Update(product);
+
+        //            var newDetail = new OrderDetail
+        //            {
+        //                OrderId = id,
+        //                ProductId = detail.ProductId,
+        //                Quantity = detail.Quantity,
+        //                Price = product.CurrentPrice
+        //            };
+
+        //            totalAmount += detail.Quantity * detail.Price;
+        //            existingOrder.OrderDetails.Add(newDetail);
+        //        }
+
+        //        existingOrder.TotalAmount = totalAmount;
+        //        _context.Orders.Update(existingOrder);
+        //        _context.SaveChanges();
+        //        transaction.Commit();
+
+        //        response.Message = "Success";
+        //        return Ok(response);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        transaction.Rollback();
+        //        response.Message = ex.Message;
+        //        return StatusCode(500, response);
+        //    }
+        //}
+
+
+
 
     }
-    
+
     public class OrderRequest
     {
+        public int OrderId { get; set; }
         public int UserId { get; set; }
         public List<OrderDetailRequest> OrderDetails  { get; set; }
     }
