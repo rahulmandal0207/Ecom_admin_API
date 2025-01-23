@@ -6,6 +6,7 @@ using System.Dynamic;
 using System.Data;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Ecommerce_API_2.Enums;
 
 namespace Ecommerce_API_2.Controllers
 {
@@ -71,6 +72,7 @@ namespace Ecommerce_API_2.Controllers
                                 u.Email,
                                 u.Password,
                                 u.Role,
+                                RoleName = ((UserRole)u.Role).ToString(),
                                 Orders = (from o in _context.Orders
                                           where o.UserId == u.UserId
                                           select new
@@ -100,11 +102,13 @@ namespace Ecommerce_API_2.Controllers
                             }).ToList();
 
                 response.Data = data;
-                response.Message = "Success";
+                response.Success = true;
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 response.Message = e.Message;
+                response.Success = false;
+
             }
 
             return Ok(response);
@@ -118,11 +122,14 @@ namespace Ecommerce_API_2.Controllers
             {
                 var user = (from u in _context.Users
                             where u.UserId == id
+                            orderby u.Email
                             select new
                             {
                                 u.UserId,
                                 u.Email,
                                 u.Password,
+                                u.Role,
+                                RoleName = ((UserRole)u.Role).ToString(),
                                 Orders = (from o in _context.Orders
                                           where o.UserId == u.UserId
                                           select new
@@ -158,11 +165,13 @@ namespace Ecommerce_API_2.Controllers
                 }
 
                 response.Data = user;
-                response.Message = "Success";
+                response.Success = true;
             }
             catch (Exception e)
             {
                 response.Message = e.Message;
+                response.Success = false;
+
             }
 
             return Ok(response);
@@ -186,12 +195,14 @@ namespace Ecommerce_API_2.Controllers
                 _context.Users.Add(user);
                 _context.SaveChanges();
 
-                response.Message = "Success";
+                response.Success = true;
                 response.Data = user;
             }
             catch (Exception e)
             {
                 response.Message = e.Message;
+                response.Success = false;
+
             }
             return Ok(response);
         }
@@ -226,12 +237,14 @@ namespace Ecommerce_API_2.Controllers
                 _context.Users.Update(user);
                 _context.SaveChanges();
 
-                response.Message = "Success";
+                response.Success = true;
                 response.Data = user;
             }
             catch(Exception e)
             {
                 response.Message = e.Message;
+                response.Success = false;
+
             }
             return Ok(response);
         }
@@ -255,12 +268,14 @@ namespace Ecommerce_API_2.Controllers
                 _context.Users.Remove(user);
                 _context.SaveChanges();
 
-                response.Message = "Deleted User";
+                response.Success = true;
                 response.Data = user;
             }
             catch (Exception e)
             {
                 response.Message = e.Message;
+                response.Success = false;
+
             }
 
             return Ok(response);
@@ -281,7 +296,7 @@ namespace Ecommerce_API_2.Controllers
                     return NotFound(response);
                 }
 
-                response.Message = "Login Success";
+                response.Success = true;
                 response.Data = user;
 
                 return Ok(response);
@@ -290,6 +305,8 @@ namespace Ecommerce_API_2.Controllers
             catch (Exception ex)
             {
                 response.Message = ex.Message;
+                response.Success = false;
+
             }
 
             return Ok(response);
@@ -310,9 +327,6 @@ namespace Ecommerce_API_2.Controllers
         public string Password { get; set; } = null!;
 
         public byte Role { get; set; }
-
-
-      
 
     }
 }

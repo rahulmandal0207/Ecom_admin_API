@@ -18,106 +18,103 @@ namespace Ecommerce_API_2.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetOrders()
+        public async Task<IActionResult> GetOrders()
         {
             dynamic response = new ExpandoObject();
             try
             {
-                var data = (from o in _context.Orders
-                            select new
-                            {
-                                o.OrderId,
-                                o.OrderDate,
-                                o.TotalAmount,
-                                o.OrderStatus,
-                                OrderDetails = (from od in _context.OrderDetails
-                                                where od.OrderId == o.OrderId
-                                                select new
-                                                {
-                                                    od.OrderDetailId,
-                                                    od.ProductId,
-                                                    od.Quantity,
-                                                    od.Price,
-                                                    Products = (from p in _context.Products
-                                                                where p.ProductId == od.ProductId
-                                                                select new
-                                                                {
-                                                                    p.ProductName,
-                                                                    p.CurrentPrice,
-                                                                    p.StockQuantity,
-                                                                }).ToList()
-                                                }).ToList()
-                            }).ToList();
+                var data = await (from o in _context.Orders
+                                  select new
+                                  {
+                                      o.OrderId,
+                                      o.OrderDate,
+                                      o.TotalAmount,
+                                      o.OrderStatus,
+                                      OrderDetails = (from od in _context.OrderDetails
+                                                      where od.OrderId == o.OrderId
+                                                      select new
+                                                      {
+                                                          od.OrderDetailId,
+                                                          od.ProductId,
+                                                          od.Quantity,
+                                                          od.Price,
+                                                          Products = (from p in _context.Products
+                                                                      where p.ProductId == od.ProductId
+                                                                      select new
+                                                                      {
+                                                                          p.ProductName,
+                                                                          p.CurrentPrice,
+                                                                          p.StockQuantity,
+                                                                      }).ToList()
+                                                      }).ToList()
+                                  }).ToListAsync();
 
 
-                response.Message = "Success";
+                response.Success = true;
                 response.Data = data;
+                return Ok(response);
             }
             catch (Exception ex)
             {
+                response.Success = false; 
                 response.Message = ex.Message;
+                return StatusCode(500, response);
             }
-            return Ok(response);
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetOrder(int id)
+        public async Task<IActionResult> GetOrder(int id)
         {
             dynamic response = new ExpandoObject();
             try
             {
-                var data = (from o in _context.Orders
-                            where o.OrderId == id
-                            select new
-                            {
-                                o.OrderId,
-                                o.OrderDate,
-                                o.TotalAmount,
-                                o.OrderStatus,
-                                OrderDetails = (from od in _context.OrderDetails
-                                                where od.OrderId == o.OrderId
-                                                select new
-                                                {
-                                                    od.OrderDetailId,
-                                                    od.ProductId,
-                                                    od.Quantity,
-                                                    od.Price,
-                                                    Products = (from p in _context.Products
-                                                                where p.ProductId == od.ProductId
-                                                                select new
-                                                                {
-                                                                    p.ProductName,
-                                                                    p.CurrentPrice,
-                                                                    p.StockQuantity,
-                                                                }).ToList()
-                                                }).ToList()
-                            }).FirstOrDefault();
+                var data = await (from o in _context.Orders
+                                  where o.OrderId == id
+                                  select new
+                                  {
+                                      o.OrderId,
+                                      o.OrderDate,
+                                      o.TotalAmount,
+                                      o.OrderStatus,
+                                      OrderDetails = (from od in _context.OrderDetails
+                                                      where od.OrderId == o.OrderId
+                                                      select new
+                                                      {
+                                                          od.OrderDetailId,
+                                                          od.ProductId,
+                                                          od.Quantity,
+                                                          od.Price,
+                                                          Products = (from p in _context.Products
+                                                                      where p.ProductId == od.ProductId
+                                                                      select new
+                                                                      {
+                                                                          p.ProductName,
+                                                                          p.CurrentPrice,
+                                                                          p.StockQuantity,
+                                                                      }).ToList()
+                                                      }).ToList()
+                                  }).FirstOrDefaultAsync();
 
-
-
-
-                response.Message = "Success";
+                response.Success = true;
                 response.Data = data;
             }
             catch (Exception ex)
             {
-                response.Message = ex.Message;
+                response.Success = false; response.Message = ex.Message;
             }
             return Ok(response);
         }
 
-
-
         [HttpPost]
-        public IActionResult PlaceOrder(OrderRequest dto)
+        public async Task<IActionResult> PlaceOrder(OrderRequest dto)
         {
             dynamic response = new ExpandoObject();
 
-            using var transaction = _context.Database.BeginTransaction();
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 // Validate user
-                if (!_context.Users.Any(u => u.UserId == dto.UserId))
+                if (!await _context.Users.AnyAsync(u => u.UserId == dto.UserId))
                 {
                     response.Message = "User not found";
                     return BadRequest(response);
@@ -125,7 +122,7 @@ namespace Ecommerce_API_2.Controllers
 
                 // Fetch products in a single query
                 var productIds = dto.OrderDetails.Select(od => od.ProductId).ToList();
-                var products = _context.Products.Where(p => productIds.Contains(p.ProductId)).ToList();
+                var products = await _context.Products.Where(p => productIds.Contains(p.ProductId)).ToListAsync();
 
                 decimal totalAmount = 0;
 
@@ -169,32 +166,29 @@ namespace Ecommerce_API_2.Controllers
                 };
 
                 _context.Orders.Add(order);
-                _context.SaveChanges();
+                await _context.SaveChangesAsync();
 
-                transaction.Commit();
+                await transaction.CommitAsync();
 
-                response.Message = "Success";
+                response.Success = true;
                 response.Data = order;
 
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                transaction.Rollback();
-                response.Message = ex.Message;
+                await transaction.RollbackAsync();
+                response.Success = false; response.Message = ex.Message;
                 return StatusCode(500, response);
             }
         }
 
-
-
-        // update
         [HttpPut("{id}")]
-        public IActionResult UpdateOrder(int id, OrderRequest request)
+        public async Task<IActionResult> UpdateOrder(int id, OrderRequest request)
         {
             dynamic response = new ExpandoObject();
 
-            using var transaction = _context.Database.BeginTransaction();
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 if (id != request.OrderId)
@@ -203,8 +197,8 @@ namespace Ecommerce_API_2.Controllers
                     return BadRequest(response);
                 }
 
-                
-                var existingOrder = _context.Orders.Include(o => o.OrderDetails).FirstOrDefault(o => o.OrderId == id);
+
+                var existingOrder = await _context.Orders.Include(o => o.OrderDetails).FirstOrDefaultAsync(o => o.OrderId == id);
 
                 if (existingOrder == null)
                 {
@@ -219,9 +213,9 @@ namespace Ecommerce_API_2.Controllers
 
                 foreach (var detail in existingOrder.OrderDetails)
                 {
-                    Product? product = (from p in _context.Products
-                                        where p.ProductId == detail.ProductId
-                                        select p).FirstOrDefault();
+                    Product? product = await (from p in _context.Products
+                                              where p.ProductId == detail.ProductId
+                                              select p).FirstOrDefaultAsync();
 
                     if (product != null)
                     {
@@ -235,9 +229,9 @@ namespace Ecommerce_API_2.Controllers
 
                 foreach (var detail in request.OrderDetails)
                 {
-                    Product? product = (from p in _context.Products
-                                        where p.ProductId == detail.ProductId
-                                        select p).FirstOrDefault();
+                    Product? product = await (from p in _context.Products
+                                              where p.ProductId == detail.ProductId
+                                              select p).FirstOrDefaultAsync();
 
                     if (product == null)
                     {
@@ -268,30 +262,30 @@ namespace Ecommerce_API_2.Controllers
 
                 existingOrder.TotalAmount = totalAmount;
                 _context.Orders.Update(existingOrder);
-                _context.SaveChanges();
-                transaction.Commit();
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
-                response.Message = "Success";
+                response.Success = true;
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                transaction.Rollback();
-                response.Message = ex.Message;
+                await transaction.RollbackAsync();
+                response.Success = false; response.Message = ex.Message;
                 return StatusCode(500, response);
             }
         }
 
         [HttpDelete("{id}")]
-        public IActionResult DeleteOrder(int id)
+        public async Task<IActionResult> DeleteOrder(int id)
         {
             dynamic response = new ExpandoObject();
 
             try
             {
-                Order? order = (from o in _context.Orders
-                                where o.OrderId == id
-                                select o).FirstOrDefault();
+                Order? order = await (from o in _context.Orders
+                                      where o.OrderId == id
+                                      select o).FirstOrDefaultAsync();
 
                 if (order == null)
                 {
@@ -300,21 +294,18 @@ namespace Ecommerce_API_2.Controllers
                 }
 
                 _context.Orders.Remove(order);
-                _context.SaveChanges();
+                await _context.SaveChangesAsync();
 
+                response.Success = true;
                 return Ok(response);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
+                response.Success = false;
                 response.Message = e.Message;
                 return StatusCode(500, response);
             }
-
-
         }
-
-
-
     }
 
     public class OrderRequest

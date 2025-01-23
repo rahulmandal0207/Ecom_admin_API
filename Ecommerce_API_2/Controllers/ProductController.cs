@@ -40,7 +40,7 @@ namespace Ecommerce_API_2.Controllers
             }
             catch (System.Exception ex)
             {
-                response.Message = ex.Message;
+                response.Success = false;
             }
             return Ok(response);
         }
